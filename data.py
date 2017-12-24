@@ -1,53 +1,140 @@
-import numpy as np
 import os
 
-import configure
+import numpy as np
+import pandas as pd
 
-def sample_minibatch(data, batch_size=100, split='train'):
-    split_size = data['%s_captions' % split].shape[0]
-    mask = np.random.choice(split_size, batch_size)
-    captions = data['%s_captions' % split][mask]
-    image_idxs = data['%s_image_idxs' % split][mask]
-    image_features = data['%s_features' % split][image_idxs]
-    urls = data['%s_urls' % split][image_idxs]
-    return captions, image_features, urls
+from configure import *
+from utils import *
 
-def get_CIFAR10_data(num_training=49000, num_validation=1000, num_test=1000,
-                     subtract_mean=True):
+
+def sample_minibatch(data, batch_size=100, training=False):
     """
-    Load the dataset from disk and perform preprocessing to prepare
-    it for classifiers.
+    Sample minibatch from dataset
+
+    Input:
+    - data
+    - batch_size:
+    - training: Boolean;
+
+    Return:
+    - 
     """
-    # Load the raw data
-    cifar10_dir = 'cs231n/datasets/cifar-10-batches-py'
-    X_train, y_train, X_test, y_test = load_CIFAR10(cifar10_dir)
+    pass
 
-    # Subsample the data
-    mask = list(range(num_training, num_training + num_validation))
-    X_val = X_train[mask]
-    y_val = y_train[mask]
-    mask = list(range(num_training))
-    X_train = X_train[mask]
-    y_train = y_train[mask]
-    mask = list(range(num_test))
-    X_test = X_test[mask]
-    y_test = y_test[mask]
+def get_target(data_dir, time_range):
+    """
+    Get maximum VRTG in time_range for every flight from data_dir.
 
-    # Normalize the data: subtract the mean image
-    if subtract_mean:
-        mean_image = np.mean(X_train, axis=0)
-        X_train -= mean_image
-        X_val -= mean_image
-        X_test -= mean_image
+    Input:
+    - data_dir: A string, paths of flight files.
+    - time_range: A tuple with start time point and end time point, this
+      function get the maximum VRTG in time_range.
 
-    # Transpose so that channels come first
-    X_train = X_train.transpose(0, 3, 1, 2).copy()
-    X_val = X_val.transpose(0, 3, 1, 2).copy()
-    X_test = X_test.transpose(0, 3, 1, 2).copy()
+    Returns:
+    - targets: A dictionary mapping flight filenames to maximum VRTG
+    """
+    start, end = time_range
+    filenames = os.listdir(data_dir)
+    targets = np.zeros(len(filenames))
 
-    # Package data into a dictionary
-    return {
-      'X_train': X_train, 'y_train': y_train,
-      'X_val': X_val, 'y_val': y_val,
-      'X_test': X_test, 'y_test': y_test,
-    }
+    for n, fname in enumerate(filenames):
+        flight_df = pd.read_csv(data_dir + fname,
+                                names=COLUMNS,
+                                usecols=COLUMNS[ACC_VRT],
+                                skiprows=start,
+                                nrows=end-start)
+        targets[n] = flight_df.values.max()
+    return targets
+
+
+def get_data(data_dir, time_range):
+    """
+    Get input data for prediction.
+
+    Input:
+    - data_dir: A string, path to directory of flight files.
+    - time_range: A tuple with start time point and end time point, this
+      function get the input data in time_range.
+
+    Returns:
+    - data: A Numpy array, of shape (N, T, C).
+      - N: the number of flights
+      - T: the length of time_range
+      - C: COL_NUM, the number of columns all you need. Defined in configure.py
+    """
+    start, end = time_range
+    filenames = os.listdir(data_dir)
+    data = np.zeros((len(filenames), start - end, COL_NUM))
+
+    for n, fname in enumerate(filenames):
+        flight_df = pd.read_csv(data_dir + fname,
+                                names=COLUMNS,
+                                skiprows=start,
+                                nrows=end-start
+                                ).fillna(method='pad'
+                                ).fillna(method='bfill')
+
+        arr_env = decompose_wind(flight_df)
+        arr_drv = compose_sstick(flight_df, sstick=False)
+              
+        others      = [ACC_LNG, ACC_LAT, ACC_VRT, PITH, ROLL, *SINGLE_COL]
+        data_others = [abs_max(flight_df[COLUMNS[i]].values) for i in others]
+        arr_others  = np.r_[data_others].T
+
+        data[n] = np.c_[arr_env, arr_drv, arr_others]
+    return data
+
+
+def split_data(num_train=5000, num_validation=500, num_test=500, seed=None,
+               X_time_range=(240, 300), y_time_range=(300, 305)):
+    """
+    Load the dataset from disk and perform preprocessing, and split dataset to
+    train, validation, test part.
+
+    Inputs:
+    - num_train: A integer for train set size. Default is 5000.
+    - num_validation: A integer for  validation set size. Default is 500.
+    - num_test: A integer for test set size. Default is 500.
+    - seed: A integer for random seed to keep the same shuffle result.
+    - X_time_range: A tuple with start time point and end time point, this
+      function get the input data in time_range.
+    - y_time_range: A tuple with start time point and end time point, this
+      function get the maximum VRTG in time_range.
+
+    Return:
+    - splited: A dictionary mapping some strings to parts of splited dataset.
+    """
+    filenames = os.listdir(PATH)
+    if num_train + num_validation + num_test > len(filenames):
+        raise ValueError("No enough data. Reduce numbers.")
+
+    if seed:
+        np.random.seed(seed)
+
+    # Load dataset
+    target = get_target(PATH, y_time_range)
+    data = get_data(PATH, X_time_range)
+    
+    # Shuffle
+    indics = np.arange(len(filenames))
+    np.random.shuffle(indics)
+    
+    # Split dataset
+    splited = {}
+
+    mask_val = indics[:num_validation]
+    splited['X_val'] = data[mask_val]
+    splited['y_val'] = target[mask_val]
+    splited['f_val'] = filenames[mask_val]
+
+    mask_train = indics[num_validation: num_validation + num_train]
+    splited['X_train'] = data[mask_train]
+    splited['y_train'] = target[mask_train]
+    splited['f_train'] = filenames[mask_train]
+
+    mask_test = indics[-num_test: ]
+    splited['X_test'] = data[mask_test]
+    splited['y_test'] = target[mask_test]
+    splited['f_test'] = filenames[mask_test]
+
+    return splited
