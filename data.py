@@ -64,7 +64,7 @@ def get_data(data_dir, time_range):
     """
     start, end = time_range
     filenames = os.listdir(data_dir)
-    data = np.zeros((len(filenames), start - end, COL_NUM))
+    data = np.zeros((len(filenames), end-start, COL_NUM))
 
     for n, fname in enumerate(filenames):
         flight_df = pd.read_csv(data_dir + fname,
@@ -104,7 +104,7 @@ def split_data(num_train=5000, num_validation=500, num_test=500, seed=None,
     Return:
     - splited: A dictionary mapping some strings to parts of splited dataset.
     """
-    filenames = os.listdir(PATH)
+    filenames = np.array(os.listdir(PATH))
     if num_train + num_validation + num_test > len(filenames):
         raise ValueError("No enough data. Reduce numbers.")
 

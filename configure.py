@@ -1,6 +1,6 @@
 import re
 
-PATH = '~/Documents/Data/A320_300_20/'
+PATH = '/Users/pyy/Documents/Data/A320_300_20/'
 
 RAW_COLUMNS = """
 _ALTITUDE	_GS	_DRIFT	_HEADING_LINEAR	_GLIDE	_LOC	_LONG_ACC	_LONG_ACC-1	
