@@ -336,7 +336,8 @@ def temporal_dot_forward(x, w, b):
     """
     N, T, D = x.shape
     out = x.reshape(N * T, D).dot(w).reshape(N, T) + b
-    cache = x, w, out
+    out = np.tanh(out)
+    cache = (x, w, out)
     return out, cache
 
 
@@ -356,6 +357,7 @@ def temporal_dot_backward(dout, cache):
     x, w, out = cache
     N, T, D = x.shape
 
+    dout = dout * (1 - out ** 2)
     dx = dout.reshape(N * T, 1).dot(w.reshape(1, D)).reshape(N, T, D)
     dw = dout.reshape(1, N * T).dot(x.reshape(N * T, D)).reshape(D)
     db = dout.sum()

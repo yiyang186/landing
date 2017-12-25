@@ -20,7 +20,7 @@ class TestLayersModule(unittest.TestCase):
         """ test relative error """
         x, y = first, second
         rerr = np.max(np.abs(x - y) / (np.maximum(1e-8, np.abs(x) + np.abs(y))))
-        self.assertAlmostEqual(rerr, 0.0)
+        self.assertAlmostEqual(rerr, 0.0, places=6)
 
     def assertAllclosed(self, first, second):
         """"""
