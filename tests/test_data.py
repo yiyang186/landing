@@ -1,7 +1,8 @@
 import sys
-sys.path.append("..")
+sys.path.append(".")
 
 import unittest
+import time
 import numpy as np
 
 from data import *
@@ -20,12 +21,17 @@ class TestDataModule(unittest.TestCase):
     def setUpClass(cls):
         pass
 
+    def assertAllclosed(self, first, second):
+        test = np.allclose(first, second, rtol=1.e-5)
+        if not test:
+            print("Arrays are not equal:", first, second, sep='\n')
+        self.assertTrue(test)
+
     def test_get_target(self): 
         """ """
         time_range = (300, 305)
         a = np.array([1.26370847, 1.26453853, 1.29455566])
-        self.assertTrue(np.allclose(a, get_target(filenames, time_range), 
-                        rtol=1.e-6))
+        self.assertAllclosed(a, get_target(filenames, time_range))
 
     def test_get_data(self):
         time_range = (200, 300)
@@ -42,8 +48,8 @@ class TestDataModule(unittest.TestCase):
         start, end = X_time_range
 
         splited = split_data(
-            num_train=num_train, num_validation=num_valid,
-            num_test=5, seed=0, X_time_range=X_time_range, 
+            num_train=num_train, num_validation=num_valid, num_test=5,
+            seed=int(time.time()), X_time_range=X_time_range, 
             y_time_range=y_time_range
         )
 
@@ -54,12 +60,12 @@ class TestDataModule(unittest.TestCase):
         self.assertEqual(splited['X_test'].shape, 
                         (num_test, end - start, COL_NUM))
 
-        self.assertTrue(np.allclose(splited['y_val'], 
-                        get_target(splited['f_val'], y_time_range)))        
-        self.assertTrue(np.allclose(splited['y_test'], 
-                        get_target(splited['f_test'], y_time_range)))   
-        self.assertTrue(np.allclose(splited['y_train'], 
-                        get_target(splited['f_train'], y_time_range)))     
+        self.assertAllclosed(splited['y_val'],
+                             get_target(splited['f_val'], y_time_range))      
+        self.assertAllclosed(splited['y_test'], 
+                             get_target(splited['f_test'], y_time_range))
+        self.assertAllclosed(splited['y_train'], 
+                             get_target(splited['f_train'], y_time_range))
 
 
 

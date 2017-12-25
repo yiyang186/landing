@@ -1,7 +1,6 @@
 import numpy as np
 
 from layers import *
-from rnn_layers import *
 
 
 class RNN(object):
@@ -16,16 +15,13 @@ class RNN(object):
     Note that we don't use any regularization for the RNN.
     """
 
-    def __init__(self, word_to_idx, input_dim=12, wordvec_dim=32,
+    def __init__(self, input_dim=12, T=60,
                  hidden_dim=32, cell_type='rnn', dtype=np.float32):
         """
         Construct a new RNN instance.
 
         Inputs:
-        - word_to_idx: A dictionary giving the vocabulary. It contains V entries,
-          and maps each string to a unique integer in the range [0, V).
-        - input_dim: Dimension D of input image feature vectors.
-        - wordvec_dim: Dimension W of word vectors.
+        - input_dim: Dimension D of flight data vectors.
         - hidden_dim: Dimension H for the hidden state of the RNN.
         - cell_type: What type of RNN to use; either 'rnn' or 'lstm'.
         - dtype: numpy datatype to use; use float32 for training and float64 for
@@ -38,31 +34,26 @@ class RNN(object):
         self.dtype = dtype
         self.params = {}
 
-        # Initialize word vectors
-        self.params['W_embed'] = np.random.randn(input_dim, wordvec_dim)
-        self.params['W_embed'] /= np.sqrt(input_dim)
-
         # Initialize parameters for the RNN
         dim_mul = {'lstm': 4, 'rnn': 1}[cell_type]
-        self.params['Wx'] = np.random.randn(wordvec_dim, dim_mul * hidden_dim)
-        self.params['Wx'] /= np.sqrt(wordvec_dim)
+        self.params['Wx'] = np.random.randn(input_dim, dim_mul * hidden_dim)
+        self.params['Wx'] /= np.sqrt(input_dim)
         self.params['Wh'] = np.random.randn(hidden_dim, dim_mul * hidden_dim)
         self.params['Wh'] /= np.sqrt(hidden_dim)
         self.params['b'] = np.zeros(dim_mul * hidden_dim)
 
         # Initialize vrtg weights
-        self.params['W_vrtg'] = np.random.randn(hidden_dim, 1)
+        self.params['W_vrtg'] = np.random.randn(hidden_dim)
         self.params['W_vrtg'] /= np.sqrt(hidden_dim)
         self.params['b_vrtg'] = 0.0
 
         # Initialize hard landing weights
-        self.params['W_hard'] = np.random.randn(hidden_dim, 1)
+        self.params['W_hard'] = np.random.randn(hidden_dim)
         self.params['W_hard'] /= np.sqrt(hidden_dim)
         self.params['b_hard'] = 0.0
 
         # Initialize attension weights
-        T = 60
-        self.params['W_atts'] = np.random.randn(T, 1)
+        self.params['W_atts'] = np.random.randn(T)
         self.params['W_atts'] /= T
 
         # Initialize hidden layes 0
@@ -81,31 +72,20 @@ class RNN(object):
 
         Inputs:
         - data:
+        - vrtg_train:
 
         Returns a tuple of:
         - loss: Scalar loss
         - grads: Dictionary of gradients parallel to self.params
         """
-        # Word embedding matrix
-        W_embed = self.params['W_embed']
-
-        # Input-to-hidden, hidden-to-hidden, and biases for the RNN
         Wx, Wh, b = self.params['Wx'], self.params['Wh'], self.params['b']
-
-        # Weight and bias for the hidden-to-vrtg transformation.
         W_vrtg, b_vrtg = self.params['W_vrtg'], self.params['b_vrtg']
-
-        # hidden-to-hard, Weights and biases for the hard landing
         W_hard, b_hard = self.params['W_hard'], self.params['b_hard']
-
-        # Weights for the attension
         W_atts = self.params['W_atts']
-
         loss, grads = 0.0, {}
 
-        out, cache_embed = word_embedding_forward(data, W_embed)
         out, cache_rnn = eval(self.cell_type + '_forward')(
-            out, self.h0, Wx, Wh, b)
+            data, self.h0, Wx, Wh, b)
         vrtg, cache_vrtg = temporal_dot_forward(out, W_vrtg, b_vrtg)
         hard, cache_hard = temporal_dot_forward(out, W_hard, b_hard)
         atts, cache_atts = attension_forward(hard, W_atts)
