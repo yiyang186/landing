@@ -16,8 +16,8 @@ class RNN(object):
     Note that we don't use any regularization for the RNN.
     """
 
-    def __init__(self, word_to_idx, input_dim=512, wordvec_dim=128,
-                 hidden_dim=128, cell_type='rnn', dtype=np.float32):
+    def __init__(self, word_to_idx, input_dim=12, wordvec_dim=32,
+                 hidden_dim=32, cell_type='rnn', dtype=np.float32):
         """
         Construct a new RNN instance.
 
@@ -36,24 +36,11 @@ class RNN(object):
 
         self.cell_type = cell_type
         self.dtype = dtype
-        self.word_to_idx = word_to_idx
-        self.idx_to_word = {i: w for w, i in word_to_idx.items()}
         self.params = {}
 
-        vocab_size = len(word_to_idx)
-
-        self._null = word_to_idx['<NULL>']
-        self._start = word_to_idx.get('<START>', None)
-        self._end = word_to_idx.get('<END>', None)
-
         # Initialize word vectors
-        self.params['W_embed'] = np.random.randn(vocab_size, wordvec_dim)
-        self.params['W_embed'] /= 100
-
-        # Initialize CNN -> hidden state projection parameters
-        self.params['W_proj'] = np.random.randn(input_dim, hidden_dim)
-        self.params['W_proj'] /= np.sqrt(input_dim)
-        self.params['b_proj'] = np.zeros(hidden_dim)
+        self.params['W_embed'] = np.random.randn(input_dim, wordvec_dim)
+        self.params['W_embed'] /= np.sqrt(input_dim)
 
         # Initialize parameters for the RNN
         dim_mul = {'lstm': 4, 'rnn': 1}[cell_type]
@@ -63,64 +50,68 @@ class RNN(object):
         self.params['Wh'] /= np.sqrt(hidden_dim)
         self.params['b'] = np.zeros(dim_mul * hidden_dim)
 
-        # Initialize output to vocab weights
-        self.params['W_vocab'] = np.random.randn(hidden_dim, vocab_size)
-        self.params['W_vocab'] /= np.sqrt(hidden_dim)
-        self.params['b_vocab'] = np.zeros(vocab_size)
+        # Initialize vrtg weights
+        self.params['W_vrtg'] = np.random.randn(hidden_dim, 1)
+        self.params['W_vrtg'] /= np.sqrt(hidden_dim)
+        self.params['b_vrtg'] = 0.0
+
+        # Initialize hard landing weights
+        self.params['W_hard'] = np.random.randn(hidden_dim, 1)
+        self.params['W_hard'] /= np.sqrt(hidden_dim)
+        self.params['b_hard'] = 0.0
+
+        # Initialize attension weights
+        T = 60
+        self.params['W_atts'] = np.random.randn(T, 1)
+        self.params['W_atts'] /= T
+
+        # Initialize hidden layes 0
+        self.h0 = np.zeros(hidden_dim)
 
         # Cast parameters to correct dtype
         for k, v in self.params.items():
             self.params[k] = v.astype(self.dtype)
 
 
-    def loss(self, features, captions):
+    def loss(self, data, vrtg_train):
         """
         Compute training-time loss for the RNN. We input image features and
         ground-truth captions for those images, and use an RNN (or LSTM) to compute
         loss and gradients on all parameters.
 
         Inputs:
-        - features: Input image features, of shape (N, D)
-        - captions: Ground-truth captions; an integer array of shape (N, T) where
-          each element is in the range 0 <= y[i, t] < V
+        - data:
 
         Returns a tuple of:
         - loss: Scalar loss
         - grads: Dictionary of gradients parallel to self.params
         """
-        # Cut captions into two pieces: captions_in has everything but the last word
-        # and will be input to the RNN; captions_out has everything but the first
-        # word and this is what we will expect the RNN to generate. These are offset
-        # by one relative to each other because the RNN should produce word (t+1)
-        # after receiving word t. The first element of captions_in will be the START
-        # token, and the first element of captions_out will be the first word.
-        captions_in = captions[:, :-1]
-        captions_out = captions[:, 1:]
-
-        # You'll need this
-        mask = (captions_out != self._null)
-
-        # Weight and bias for the affine transform from image features to initial
-        # hidden state
-        W_proj, b_proj = self.params['W_proj'], self.params['b_proj']
-
         # Word embedding matrix
         W_embed = self.params['W_embed']
 
         # Input-to-hidden, hidden-to-hidden, and biases for the RNN
         Wx, Wh, b = self.params['Wx'], self.params['Wh'], self.params['b']
 
-        # Weight and bias for the hidden-to-vocab transformation.
-        W_vocab, b_vocab = self.params['W_vocab'], self.params['b_vocab']
+        # Weight and bias for the hidden-to-vrtg transformation.
+        W_vrtg, b_vrtg = self.params['W_vrtg'], self.params['b_vrtg']
+
+        # hidden-to-hard, Weights and biases for the hard landing
+        W_hard, b_hard = self.params['W_hard'], self.params['b_hard']
+
+        # Weights for the attension
+        W_atts = self.params['W_atts']
 
         loss, grads = 0.0, {}
 
-        h0 = features.dot(W_proj) + b_proj
-        out, cache_embed = word_embedding_forward(captions_in, W_embed)
-        out, cache_rnn = eval(self.cell_type + '_forward')(out, h0, Wx, Wh, b)
-        out, cache_vocab = temporal_affine_forward(out, W_vocab, b_vocab)
-        loss, dout = temporal_softmax_loss(
-            out, captions_out, mask, verbose=False)
+        out, cache_embed = word_embedding_forward(data, W_embed)
+        out, cache_rnn = eval(self.cell_type + '_forward')(
+            out, self.h0, Wx, Wh, b)
+        vrtg, cache_vrtg = temporal_dot_forward(out, W_vrtg, b_vrtg)
+        hard, cache_hard = temporal_dot_forward(out, W_hard, b_hard)
+        atts, cache_atts = attension_forward(hard, W_atts)
+        out = vrtg + atts 
+        loss, dout = temporal_leastsquare_loss(
+            out, vrtg_train, verbose=False)
         
         dout, grads['W_vocab'], grads['b_vocab'] = temporal_affine_backward(
             dout, cache_vocab)

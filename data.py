@@ -21,12 +21,12 @@ def sample_minibatch(data, batch_size=100, training=False):
     """
     pass
 
-def get_target(data_dir, time_range):
+def get_target(filenames, time_range):
     """
-    Get maximum VRTG in time_range for every flight from data_dir.
+    Get maximum VRTG in time_range for every flight from filenames.
 
     Input:
-    - data_dir: A string, paths of flight files.
+    - filenames: A list within string, paths of flight files.
     - time_range: A tuple with start time point and end time point, this
       function get the maximum VRTG in time_range.
 
@@ -34,11 +34,10 @@ def get_target(data_dir, time_range):
     - targets: A dictionary mapping flight filenames to maximum VRTG
     """
     start, end = time_range
-    filenames = os.listdir(data_dir)
     targets = np.zeros(len(filenames))
 
     for n, fname in enumerate(filenames):
-        flight_df = pd.read_csv(data_dir + fname,
+        flight_df = pd.read_csv(PATH + fname,
                                 names=COLUMNS,
                                 usecols=COLUMNS[ACC_VRT],
                                 skiprows=start,
@@ -47,12 +46,12 @@ def get_target(data_dir, time_range):
     return targets
 
 
-def get_data(data_dir, time_range):
+def get_data(filenames, time_range):
     """
     Get input data for prediction.
 
     Input:
-    - data_dir: A string, path to directory of flight files.
+    - filenames: A list within string, paths of flight files.
     - time_range: A tuple with start time point and end time point, this
       function get the input data in time_range.
 
@@ -63,11 +62,10 @@ def get_data(data_dir, time_range):
       - C: COL_NUM, the number of columns all you need. Defined in configure.py
     """
     start, end = time_range
-    filenames = os.listdir(data_dir)
     data = np.zeros((len(filenames), end-start, COL_NUM))
 
     for n, fname in enumerate(filenames):
-        flight_df = pd.read_csv(data_dir + fname,
+        flight_df = pd.read_csv(PATH + fname,
                                 names=COLUMNS,
                                 skiprows=start,
                                 nrows=end-start
@@ -105,36 +103,36 @@ def split_data(num_train=5000, num_validation=500, num_test=500, seed=None,
     - splited: A dictionary mapping some strings to parts of splited dataset.
     """
     filenames = np.array(os.listdir(PATH))
-    if num_train + num_validation + num_test > len(filenames):
+    num_read = num_train + num_validation + num_test
+    if num_read > len(filenames):
         raise ValueError("No enough data. Reduce numbers.")
 
     if seed:
         np.random.seed(seed)
 
-    # Load dataset
-    target = get_target(PATH, y_time_range)
-    data = get_data(PATH, X_time_range)
-    
     # Shuffle
     indics = np.arange(len(filenames))
     np.random.shuffle(indics)
+
+    # Load dataset
+    mask = indics[: num_read]
+    filenames = filenames[mask]
+    target = get_target(filenames, y_time_range)
+    data = get_data(filenames, X_time_range)
     
     # Split dataset
     splited = {}
 
-    mask_val = indics[:num_validation]
-    splited['X_val'] = data[mask_val]
-    splited['y_val'] = target[mask_val]
-    splited['f_val'] = filenames[mask_val]
+    splited['X_val'] = data[: num_validation]
+    splited['y_val'] = target[: num_validation]
+    splited['f_val'] = filenames[: num_validation]
 
-    mask_train = indics[num_validation: num_validation + num_train]
-    splited['X_train'] = data[mask_train]
-    splited['y_train'] = target[mask_train]
-    splited['f_train'] = filenames[mask_train]
+    splited['X_train'] = data[num_validation: -num_test]
+    splited['y_train'] = target[num_validation: -num_test]
+    splited['f_train'] = filenames[num_validation: -num_test]
 
-    mask_test = indics[-num_test: ]
-    splited['X_test'] = data[mask_test]
-    splited['y_test'] = target[mask_test]
-    splited['f_test'] = filenames[mask_test]
+    splited['X_test'] = data[-num_test: ]
+    splited['y_test'] = target[-num_test: ]
+    splited['f_test'] = filenames[-num_test: ]
 
     return splited

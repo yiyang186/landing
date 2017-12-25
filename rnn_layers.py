@@ -363,6 +363,75 @@ def temporal_affine_backward(dout, cache):
     return dx, dw, db
 
 
+def temporal_dot_forward(x, w, b):
+    """
+    Forward pass for a temporal affine layer. The input is a set of D-dimensional
+    vectors arranged into a minibatch of N timeseries, each of length T. We use
+    an affine function to transform each of those vectors into a new vector of
+    dimension M.
+
+    Inputs:
+    - x: Input data of shape (N, T, D)
+    - w: Weights of shape (D, )
+    - b: Biases; scalar
+
+    Returns a tuple of:
+    - out: Output data of shape (N, T, M)
+    - cache: Values needed for the backward pass
+    """
+    N, T, D = x.shape
+    out = x.reshape(N * T, D).dot(w).reshape(N, T) + b
+    cache = x, w, out
+    return out, cache
+
+
+def temporal_dot_backward(dout, cache):
+    """
+    Backward pass for temporal affine layer.
+
+    Input:
+    - dout: Upstream gradients of shape (N, T, M)
+    - cache: Values from forward pass
+
+    Returns a tuple of:
+    - dx: Gradient of input, of shape (N, T, D)
+    - dw: Gradient of weights, of shape (D, M)
+    - db: Gradient of biases, of shape (M,)
+    """
+    x, w, out = cache
+    N, T, D = x.shape
+
+    dx = dout.reshape(-1, 1).dot(w.T).reshape(N, T, D)
+    dw = dout.reshape(1, -1).dot(x.reshape(N * T, D)).T
+    db = dout.sum()
+
+    return dx, dw, db
+
+
+def attension_forward(hard, W):
+    """
+    Forward pass for a attension layer. The input is a set of T-dimensional
+    vectors. It need a normalization like softmax.
+
+    Inputs:
+    - hard: hard landing importance of shape (N, T)
+    - w: Weights of shape (T, )
+
+    Returns a tuple of:
+    - out: Integer
+    - cache: Values needed for the backward pass
+    """
+    probs = np.exp(hard - np.max(hard, axis=1, keepdims=True))
+    probs /= np.sum(probs, axis=1, keepdims=True)
+    
+
+
+def attension_backward(dout, cache):
+    pass
+
+def temporal_leastsquare_loss(x, y, verbose=False):
+    pass
+
 def temporal_softmax_loss(x, y, mask, verbose=False):
     """
     A temporal version of softmax loss for use in RNNs. We assume that we are
