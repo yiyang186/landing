@@ -39,6 +39,26 @@ class TestDataModule(unittest.TestCase):
         self.assertEqual(get_data(filenames, time_range).shape,
                          (len(filenames), end - start, COL_NUM))
 
+    def test_all_slice(self): 
+        """ """
+        a = [COLUMNS[i] for i in SINGLE_COL]
+        b = ['_GS', '_DRIFT', '_IVV']
+        self.assertListEqual(a, b)
+        
+        a = [COLUMNS[i] for i in [SS_CP,PITH_CP,ROLL_CP,SS_FO,PITH_FO,ROLL_FO]]
+        b = [['_SSTICK_CAPT', '_SSTICK_CAPT-1', '_SSTICK_CAPT-2', 
+             '_SSTICK_CAPT-3'],
+             ['_PITCH_CAPT_SSTICK', '_PITCH_CAPT_SSTICK-1', 
+              '_PITCH_CAPT_SSTICK-2', '_PITCH_CAPT_SSTICK-3'],
+             ['_ROLL_CAPT_SSTICK', '_ROLL_CAPT_SSTICK-1', '_ROLL_CAPT_SSTICK-2',
+              '_ROLL_CAPT_SSTICK-3'],
+             ['_SSTICK_FO', '_SSTICK_FO-1', '_SSTICK_FO-2', '_SSTICK_FO-3'],
+             ['_PITCH_FO_SSTICK', '_PITCH_FO_SSTICK-1', '_PITCH_FO_SSTICK-2', 
+             '_PITCH_FO_SSTICK-3'],
+             ['_ROLL_FO_SSTICK', '_ROLL_FO_SSTICK-1', '_ROLL_FO_SSTICK-2', 
+              '_ROLL_FO_SSTICK-3']]
+        self.assertListEqual(a, b)
+
     def test_split_data(self):
         num_train = 50
         num_valid = 5

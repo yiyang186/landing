@@ -1,6 +1,10 @@
-import re
+import re, platform
 
-PATH = '/Users/pyy/Documents/Data/A320_300_20/'
+myplatform = platform.platform().lower()
+if 'win' in myplatform:
+    PATH = 'G:/A320_300_20/'
+if 'mac' in myplatform:
+    PATH = '/Users/pyy/Documents/Data/A320_300_20/'
 
 RAW_COLUMNS = """
 _ALTITUDE	_GS	_DRIFT	_HEADING_LINEAR	_GLIDE	_LOC	_LONG_ACC	_LONG_ACC-1	
