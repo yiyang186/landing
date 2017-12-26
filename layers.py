@@ -484,8 +484,24 @@ def attension_backward(dout, cache):
     return dx, dw, db
 
 
-def temporal_leastsquare_loss(x, y, verbose=False):
-    pass
+def temporal_leastsquare_loss(x, y):
+    """
+    Computes the loss and gradient for temporal least square regression.
+
+    Inputs:
+    - x: Input data, of shape (N, T) where x[i, j](j < T-1) is the predict in 
+      the jth second for the ith flight, where x[i, T-1] is the predict of max 
+      vrtg after touch down for the ith flight.
+    - y: Vector of real VRTG, of shape (N, T).
+
+    Returns a tuple of:
+    - loss: Scalar giving the loss
+    - dx: Gradient of the loss with respect to x
+    """
+    N, T = x.shape
+    loss = np.sum((x - y) ** 2 / N / 2)
+    dout = (x - y) / N
+    return loss, dout
 
 def temporal_softmax_loss(x, y, mask, verbose=False):
     """

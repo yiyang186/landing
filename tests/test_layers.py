@@ -14,7 +14,7 @@ class TestLayersModule(unittest.TestCase):
     
     @classmethod
     def setUpClass(cls):
-        np.random.seed(4374654)
+        np.random.seed(437)
 
     def assertRelerror(self, first, second):
         """ test relative error """
@@ -120,6 +120,18 @@ class TestLayersModule(unittest.TestCase):
         self.assertRelerror(dx_num, dx)
         self.assertRelerror(dw_num, dw)
         self.assertRelerror(db_num, db)
+
+    def test_temporal_leastsquare_loss(self):
+        """"""
+        N, T = 128, 60
+        x = np.random.randn(N, T).astype(np.float64)
+        y = np.random.randn(N, T).astype(np.float64) + 1
+        loss, dx = temporal_leastsquare_loss(x, y)
+
+        fx = lambda x: temporal_leastsquare_loss(x, y)[0]
+        dx_num = eval_numerical_gradient(fx, x, verbose=False)
+        self.assertRelerror(dx_num, dx)
+
 
 if __name__ == '__main__':
     unittest.main()

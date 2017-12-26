@@ -1,5 +1,6 @@
 import numpy as np
 
+from configure import *
 from layers import *
 
 
@@ -66,15 +67,15 @@ class RNN(object):
             self.params[k] = v.astype(self.dtype)
 
 
-    def loss(self, data, vrtg_train):
+    def loss(self, data, target):
         """
         Compute training-time loss for the RNN. We input image features and
         ground-truth captions for those images, and use an RNN (or LSTM) to compute
         loss and gradients on all parameters.
 
         Inputs:
-        - data:
-        - vrtg_train:
+        - data: iuput data
+        - target: Max VRTG after touch down for every flights
 
         Returns a tuple of:
         - loss: Scalar loss
@@ -83,25 +84,19 @@ class RNN(object):
         Wx, Wh, b = self.params['Wx'], self.params['Wh'], self.params['b']
         W_vrtg, b_vrtg = self.params['W_vrtg'], self.params['b_vrtg']
         W_hard, b_hard = self.params['W_hard'], self.params['b_hard']
-        W_atts = self.params['W_atts']
+        W_atts, b_atts = self.params['W_atts'], self.params['b_atts']
         loss, grads = 0.0, {}
 
         out, cache_rnn = eval(self.cell_type + '_forward')(
-            data, self.h0, Wx, Wh, b)
-        vrtg, cache_vrtg = temporal_dot_forward(out, W_vrtg, b_vrtg)
-        hard, cache_hard = temporal_dot_forward(out, W_hard, b_hard)
-        atts, cache_atts = attension_forward(hard, W_atts)
-        out = vrtg + atts 
-        loss, dout = temporal_leastsquare_loss(
-            out, vrtg_train, verbose=False)
+            data, self.h0, Wx, Wh, b)                                #(N, T, H)
+        vrtg, cache_vrtg = temporal_dot_forward(out, W_vrtg, b_vrtg) #(N, T)
+        hard, cache_hard = temporal_dot_forward(out, W_hard, b_hard) #(N, T)
+        atts, cache_atts = attension_forward(out[:, -1, :], W_atts, b_atts) #(N, T)
+        vrtg[:, -1] += atts * hard                   
+        y = np.c_[data[:, 1:, INDEX_VRTG], target]
+        loss, dout = temporal_leastsquare_loss(vrtg, y)
         
-        dout, grads['W_vocab'], grads['b_vocab'] = temporal_affine_backward(
-            dout, cache_vocab)
-        dout, dh0, grads['Wx'], grads['Wh'], grads['b'] = eval(
-            self.cell_type + '_backward')(dout, cache_rnn)
-        grads['W_embed'] = word_embedding_backward(dout, cache_embed)
-        grads['W_proj'] = features.T.dot(dh0)
-        grads['b_proj'] = dh0.sum(axis=0)
+        
 
         return loss, grads
 
