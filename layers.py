@@ -402,6 +402,7 @@ def temporal_dot_backward(dout, cache):
 
     return dx, dw, db
 
+
 def softmax_forward(x):
     """
     Forward pass for a softmax layer after rnn. Note that it is a layer, not a
@@ -436,11 +437,10 @@ def softmax_backward(dout, cache):
     N, T = dout.shape
     probs,  = cache
     dx = np.zeros(dout.shape)
-    A = np.zeros((T, T))
+    indics = np.arange(T)
     for i in range(N):
-        for j in range(T):
-            for m in range(T):
-                A[j, m] = probs[i, j] * (int(j == m) - probs[i, m])
+        p = probs[i].reshape(-1, 1)
+        A = np.diag(probs[i]) - p.dot(p.T)
         dx[i] = dout[i].dot(A)
     return dx
 
