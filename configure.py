@@ -1,10 +1,12 @@
-import re, platform
+import re, platform, os
 
-myplatform = platform.platform().lower()
-if 'win' in myplatform:
+myplatform = platform.platform()
+if 'Windows' in myplatform:
     PATH = 'G:/A320_300_20/'
-if 'mac' in myplatform:
+if 'Darwin' in myplatform:
     PATH = '/Users/pyy/Documents/Data/A320_300_20/'
+    if '.DS_Store' in os.listdir(PATH):
+        os.remove(PATH + '.DS_Store')
 
 RAW_COLUMNS = """
 _ALTITUDE	_GS	_DRIFT	_HEADING_LINEAR	_GLIDE	_LOC	_LONG_ACC	_LONG_ACC-1	
