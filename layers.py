@@ -6,6 +6,44 @@ This file defines layer types that are commonly used for recurrent neural
 networks.
 """
 
+def affine_forward(x, w, b):
+    """
+    Computes the forward pass for an affine layer.
+
+    Inputs:
+    - x: A numpy array containing input data, of shape (N, H)
+    - w: A numpy array of weights, of shape (H, T)
+    - b: A numpy array of biases, of shape (T,)
+
+    Returns a tuple of:
+    - out: output, of shape (N, T)
+    - cache: (x, w, b)
+    """
+    out = x.dot(w) + b
+    cache = (x, w, b)
+    return out, cache
+
+
+def affine_backward(dout, cache):
+    """
+    Computes the backward pass for an affine layer.
+
+    Inputs:
+    - dout: Upstream derivative, of shape (N, T)
+    - cache: Tuple of:
+      - x: Input data, of shape (N, H)
+      - w: Weights, of shape (H, T)
+
+    Returns a tuple of:
+    - dx: Gradient with respect to x, of shape (N, H)
+    - dw: Gradient with respect to w, of shape (H, T)
+    - db: Gradient with respect to b, of shape (T,)
+    """
+    x, w, b = cache
+    dx = dout.dot(w.T).reshape(x.shape)
+    dw = x.T.dot(dout)
+    db = dout.sum(axis=0)
+    return dx, dw, db
 
 def rnn_step_forward(x, prev_h, Wx, Wh, b):
     """
@@ -326,16 +364,16 @@ def temporal_dot_forward(x, w, b):
     Forward pass for a temporal dot product layer. 
 
     Inputs:
-    - x: Input data of shape (N, T, D)
-    - w: Weights of shape (D, )
+    - x: Input data of shape (N, T, H)
+    - w: Weights of shape (H, )
     - b: Biases; scalar
 
     Returns a tuple of:
     - out: Output data of shape (N, T)
     - cache: Values needed for the backward pass
     """
-    N, T, D = x.shape
-    out = x.reshape(N * T, D).dot(w).reshape(N, T) + b
+    N, T, H = x.shape
+    out = x.reshape(N * T, H).dot(w).reshape(N, T) + b
     out = np.tanh(out)
     cache = (x, w, out)
     return out, cache
@@ -350,44 +388,101 @@ def temporal_dot_backward(dout, cache):
     - cache: Values from forward pass
 
     Returns a tuple of:
-    - dx: Gradient of input, of shape (N, T, D)
-    - dw: Gradient of weights, of shape (D, )
+    - dx: Gradient of input, of shape (N, T, H)
+    - dw: Gradient of weights, of shape (H, )
     - db: Gradient of biases, scalar
     """
     x, w, out = cache
-    N, T, D = x.shape
+    N, T, H = x.shape
 
     dout = dout * (1 - out ** 2)
-    dx = dout.reshape(N * T, 1).dot(w.reshape(1, D)).reshape(N, T, D)
-    dw = dout.reshape(1, N * T).dot(x.reshape(N * T, D)).reshape(D)
+    dx = dout.reshape(N * T, 1).dot(w.reshape(1, H)).reshape(N, T, H)
+    dw = dout.reshape(1, N * T).dot(x.reshape(N * T, H)).reshape(H)
     db = dout.sum()
 
     return dx, dw, db
 
-
-def attension_forward(x, w):
+def softmax_forward(x):
     """
-    Forward pass for a attension layer. The input is a set of T-dimensional
-    vectors. It need a normalization like softmax.
+    Forward pass for a softmax layer after rnn. Note that it is a layer, not a
+    loss or an activation function.  
 
     Inputs:
-    - x: hard landing importance of shape (N, T)
-    - w: Weights of shape (T, )
+    - x: Input data of shape (N, T)
 
     Returns a tuple of:
-    - out: Integer
+    - out: Output data of shape (N, T)
     - cache: Values needed for the backward pass
     """
-    out = x.dot(w) 
-    cache = (x, w)
+    shifted_logits = x - np.max(x, axis=1, keepdims=True)
+    Z = np.sum(np.exp(shifted_logits), axis=1, keepdims=True)
+    log_probs = shifted_logits - np.log(Z)
+    probs = np.exp(log_probs)
+    cache = (probs,)
+    return probs, cache
+
+
+def softmax_backward(dout, cache):
+    """
+    Backward pass for softmax backward layer.
+
+    Inputs:
+    - dout: Upstream gradients of shape (N, T)
+    - cache: Values from forward pass
+
+    Returns a tuple of:
+    - dx: Gradient of input, of shape (N, T)
+    """
+    N, T = dout.shape
+    probs,  = cache
+    dx = np.zeros(dout.shape)
+    A = np.zeros((T, T))
+    for i in range(N):
+        for j in range(T):
+            for m in range(T):
+                A[j, m] = probs[i, j] * (int(j == m) - probs[i, m])
+        dx[i] = dout[i].dot(A)
+    return dx
+
+
+def attension_forward(x, w, b):
+    """
+    Forward pass for a attension layer after rnn. A softmax makes it
+    look like probability.
+
+    Inputs:
+    - x: Last hidden layer output of rnn, of shape (N, H).
+    - w: Weights of shape (H, T)
+    - b: Biases of shape (T, )
+
+    Returns a tuple of:
+    - out: Attension vector, of shape (N, T)
+    - cache: Values needed for the backward pass
+    """
+    out, cache_aff = affine_forward(x, w, b)
+    out, cache_smax = softmax_forward(out)
+    cache = (x, w, cache_aff, cache_smax)
     return out, cache
 
 
 def attension_backward(dout, cache):
-    (x, w) = cache
-    dx = dout * w
-    dw = dout * x
-    return dx, dw
+    """
+    Backward pass for a attension layer.
+
+    Inputs:
+    - dout: Upstream gradients; scalar
+    - cache: Values from forward pass
+
+    Returns a tuple of:
+    - dx: Gradient of input, of shape (N, T)
+    - dw: Gradient of weights, of shape (H, T)
+    - db: Gradient of biases, of shape (T, )
+    """
+    (x, w, cache_aff, cache_smax) = cache
+    dout = softmax_backward(dout, cache_smax)
+    dx, dw, db = affine_backward(dout, cache_aff)
+    return dx, dw, db
+
 
 def temporal_leastsquare_loss(x, y, verbose=False):
     pass
