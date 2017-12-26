@@ -87,7 +87,11 @@ class TestDataModule(unittest.TestCase):
         self.assertAllclosed(splited['y_train'], 
                              get_target(splited['f_train'], y_time_range))
 
-
+    def test_index_vrtg_in_data(self):
+        time_range = (300, 305)
+        vrtg_max1 = get_target(filenames, time_range)
+        vrtg_max2 = get_data(filenames, time_range)[..., INDEX_VRTG].max(axis=1)
+        self.assertAllclosed(vrtg_max1, vrtg_max2)
 
 if __name__ == '__main__':
     unittest.main()

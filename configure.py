@@ -50,6 +50,7 @@ ROLL_FO = slice(54, 58)
 # the number of columns that you need
 # the sum of cols above and 2 cols for wind
 COL_NUM = 12
+INDEX_VRTG = 6
 
 DRV = slice(34, 58)
 

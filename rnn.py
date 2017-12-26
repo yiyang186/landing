@@ -15,14 +15,15 @@ class RNN(object):
     Note that we don't use any regularization for the RNN.
     """
 
-    def __init__(self, input_dim=12, T=60,
-                 hidden_dim=32, cell_type='rnn', dtype=np.float32):
+    def __init__(self, input_dim=12, time_dim=60, hidden_dim=32, 
+                 cell_type='rnn', dtype=np.float32):
         """
         Construct a new RNN instance.
 
         Inputs:
         - input_dim: Dimension D of flight data vectors.
         - hidden_dim: Dimension H for the hidden state of the RNN.
+        - time_dim: Dimension T for the time length in attension layers.
         - cell_type: What type of RNN to use; either 'rnn' or 'lstm'.
         - dtype: numpy datatype to use; use float32 for training and float64 for
           numeric gradient checking.
@@ -53,8 +54,9 @@ class RNN(object):
         self.params['b_hard'] = 0.0
 
         # Initialize attension weights
-        self.params['W_atts'] = np.random.randn(T)
-        self.params['W_atts'] /= T
+        self.params['W_atts'] = np.random.randn(hidden_dim, time_dim)
+        self.params['W_atts'] /= time_dim
+        self.params['b_atts'] = np.zeros(time_dim)
 
         # Initialize hidden layes 0
         self.h0 = np.zeros(hidden_dim)
